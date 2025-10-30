@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APOLLO PHOTO STUDIO</title>
+    <meta name="description" content="An AI-powered web application leveraging the Gemini API for professional photo editing.">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1f2e">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary-bg: #0d0f1a; --secondary-bg: #1a1f2e; --tertiary-bg: #2a3045; 
+            --accent-color: #00aaff; --accent-glow: #00aaff80; --accent-hover: #33bbff;
+            --text-primary: #e0e5f0; --text-secondary: #a0a5b0; --border-color: #3a405a; 
+        }
+        body { font-family: 'Roboto', sans-serif; background-color: var(--primary-bg); color: var(--text-primary); margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        body::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: radial-gradient(ellipse at 70% 30%, #6478ff4d 0%, transparent 50%), radial-gradient(ellipse at 30% 70%, #ff64c84d 0%, transparent 50%); background-size: 150% 150%; animation: nebula 30s ease-in-out infinite; z-index: -1; }
+        @keyframes nebula { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background-color: var(--secondary-bg); border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        .logo { font-family: 'Orbitron', sans-serif; font-size: 1.5em; color: var(--accent-color); text-shadow: 0 0 5px var(--accent-glow); }
+        main { display: flex; flex-grow: 1; overflow: hidden; }
+        #single-editor-view { display: grid; grid-template-columns: 250px 1fr 300px; width: 100%; height: 100%; }
+        .left-panel, .right-panel { background-color: var(--secondary-bg); padding: 15px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .left-panel { border-right: 1px solid var(--border-color); } .right-panel { border-left: 1px solid var(--border-color); }
+        h3 { font-family: 'Orbitron', sans-serif; color: var(--accent-color); margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; font-size: 1.1em; }
+        .control-group { background-color: #161a27; border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; }
+        button, select { display: block; width: 100%; padding: 10px; margin-bottom: 10px; background-color: var(--tertiary-bg); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 5px; box-sizing: border-box; cursor: pointer; transition: all 0.2s ease; }
+        input[type="text"] { background-color: var(--tertiary-bg); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 5px; box-sizing: border-box; padding: 10px; width: 100%; margin-bottom: 10px; }
+        button:hover:not(:disabled) { border-color: var(--accent-hover); background-color: #343b52; }
+        .primary-action { background-color: var(--accent-color); color: var(--primary-bg); font-weight: bold; }
+        .primary-action:hover:not(:disabled) { background-color: var(--accent-hover); }
+        button:disabled, select:disabled, input:disabled { background-color: #222; cursor: not-allowed; opacity: 0.5; }
+        .canvas-area { flex-grow: 1; display: flex; justify-content: center; align-items: center; padding: 20px; position: relative; }
+        #image-canvas-container { width: 100%; height: 100%; border: 1px dashed var(--border-color); position: relative; box-shadow: 0 0 20px #00000080 inset; }
+        .canvas-container { margin: auto; cursor: crosshair; }
+        .canvas-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-secondary); pointer-events: none; }
+        .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #0d0f1acc; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--accent-color); font-size: 1.5em; z-index: 10; backdrop-filter: blur(5px); }
+        .hidden { display: none !important; }
+        label { font-size: 0.9em; color: var(--text-secondary); margin-bottom: 5px; display: block; }
+    </style>
+</head>
+<body>
+
+    <header><div class="logo">APOLLO PHOTO STUDIO</div></header>
+
+    <main>
+        <div id="single-editor-view">
+            <aside class="left-panel">
+                <div class="control-group"><h3>File & History</h3>
+                    <button id="upload-btn" class="primary-action">Upload Image</button>
+                    <button id="download-btn">Download Image</button>
+                    <button id="undo-btn">Undo</button>
+                    <button id="redo-btn">Redo</button>
+                </div>
+            </aside>
+
+            <section class="canvas-area">
+                <div class="loading-overlay hidden" id="loading-spinner">Processing with Gemini...<small style="font-size:0.6em; color:var(--text-secondary); margin-top:10px;">This may take a moment.</small></div>
+                <div id="image-canvas-container">
+                    <div class="canvas-placeholder" id="canvas-placeholder">Upload an image to begin</div>
+                    <canvas id="image-canvas-fabric"></canvas>
+                </div>
+            </section>
+
+            <aside class="right-panel">
+                <div class="control-group"><h3>AI Retouching</h3>
+                    <p style="font-size: 0.9em; color: var(--text-secondary);">Click a point on the image, then type a command.</p>
+                    <input type="text" id="retouch-prompt" placeholder="e.g., make the earring sparkle">
+                    <button id="retouch-btn" class="primary-action">Apply Localized Retouch</button>
+                </div>
+
+                <div class="control-group"><h3>Advanced Adjustments</h3>
+                    <button id="auto-enhance-btn">Auto-Enhance</button>
+                    <button id="whiten-eyes-btn">Whiten Eyes</button>
+                    <button id="magic-smooth-btn">Magic Smooth Skin</button>
+                    <select id="upscale-select"><option value="">Upscale Resolution...</option><option value="2x">2x</option><option value="4x">4x</option></select>
+                    <hr style="border-color: var(--border-color); margin: 15px 0;">
+                    <label>Background Tools:</label>
+                    <button id="remove-bg-btn">Remove Background</button>
+                    <button id="blur-bg-btn">Blur Background</button>
+                    <button id="upload-bg-image-btn">Replace with Image</button>
+                </div>
+
+                <div class="control-group"><h3>Intelligent Recolor</h3>
+                    <select id="skin-tone-select"><option value="">Skin Tone Presets...</option><option value="a rich, deep African skin tone with warm highlights">African Beauty</option><option value="a warm, medium-brown skin tone">Warm Brown</option></select>
+                    <button id="recolor-skin-btn">Apply Preset</button>
+                    <button id="upload-sample-btn">Use Sample Image</button>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- CONFIGURATION ---
+        // !!! IMPORTANT: PASTE YOUR LIVE RENDER.COM BACKEND URL HERE !!!
+        const backendUrl = 'YOUR_BACKEND_URL_HERE/api/edit'; 
+
+        // --- GLOBAL STATE & ELEMENTS ---
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const allControls = document.querySelectorAll('.right-panel button, .right-panel select, .right-panel input, .left-panel button');
+        let currentImage = null, selectedPoint = null, pointIndicator = null;
+        let history = [], historyIndex = -1;
+
+        // --- CANVAS SETUP ---
+        const canvasContainer = document.getElementById('image-canvas-container');
+        const canvasPlaceholder = document.getElementById('canvas-placeholder');
+        const canvas = new fabric.Canvas('image-canvas-fabric', { width: canvasContainer.clientWidth, height: canvasContainer.clientHeight });
+        window.addEventListener('resize', resizeCanvas);
+        
+        function resizeCanvas() {
+            canvas.setWidth(canvasContainer.clientWidth);
+            canvas.setHeight(canvasContainer.clientHeight);
+            if (currentImage) {
+                const scale = Math.min(canvas.width / currentImage.width, canvas.height / currentImage.height);
+                currentImage.scale(scale);
+                canvas.centerObject(currentImage);
+                canvas.renderAll();
+            }
+        }
+
+        // --- CORE AI & CANVAS LOGIC ---
+        async function callEditAPI(prompt, mainImageBase64, sampleImage = null) {
+            if (!validateRequest(prompt, mainImageBase64)) return;
+
+            loadingSpinner.classList.remove('hidden');
+            allControls.forEach(el => el.disabled = true);
+            if (pointIndicator) { canvas.remove(pointIndicator); pointIndicator = null; }
+
+            try {
+                const body = { prompt, imageBase64: mainImageBase64, sampleImageBase64: sampleImage };
+                const response = await fetch(backendUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `HTTP error! Status: ${response.status}`);
+                }
+                const result = await response.json();
+                updateCanvasWithImage(result.newImageBase64);
+            } catch (error) {
+                console.error("Error editing image:", error);
+                alert(`Request Failed: ${error.message}`);
+            } finally {
+                loadingSpinner.classList.add('hidden');
+                updateControlsState();
+            }
+        }
+        
+        function updateCanvasWithImage(imageBase64, save = true) {
+            fabric.Image.fromURL(imageBase64, (img) => {
+                currentImage = img;
+                canvas.clear();
+                canvas.add(img);
+                resizeCanvas();
+                if (save) saveState();
+                updateControlsState();
+            });
+        }
+
+        function validateRequest(prompt, image) {
+            if (backendUrl.includes('YOUR_BACKEND_URL_HERE')) {
+                alert('CONFIGURATION ERROR: Please set your backend URL in the index.html file.');
+                return false;
+            }
+            if (!image) { alert("Please upload an image first."); return false; }
+            if (!prompt) { alert("An internal error occurred: Prompt is missing."); return false; }
+            return true;
+        }
+        
+        // --- FILE, HISTORY, & UI STATE MANAGEMENT ---
+        function saveState() {
+            if (historyIndex < history.length - 1) history = history.slice(0, historyIndex + 1);
+            history.push(canvas.toDataURL({format: 'jpeg', quality: 0.9}));
+            historyIndex++;
+        }
+        function updateControlsState() {
+            const hasImage = !!currentImage;
+            allControls.forEach(el => el.disabled = !hasImage);
+            document.getElementById('upload-btn').disabled = false;
+            document.getElementById('undo-btn').disabled = historyIndex <= 0;
+            document.getElementById('redo-btn').disabled = historyIndex >= history.length - 1;
+        }
+
+        document.getElementById('undo-btn').addEventListener('click', () => {
+            if (historyIndex > 0) { historyIndex--; updateCanvasWithImage(history[historyIndex], false); }
+        });
+        document.getElementById('redo-btn').addEventListener('click', () => {
+            if (historyIndex < history.length - 1) { historyIndex++; updateCanvasWithImage(history[historyIndex], false); }
+        });
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file'; fileInput.accept = 'image/*';
+        document.getElementById('upload-btn').addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => {
+                history = []; historyIndex = -1;
+                canvasPlaceholder.classList.add('hidden');
+                updateCanvasWithImage(f.target.result);
+            };
+            reader.readAsDataURL(file);
+        });
+        document.getElementById('download-btn').addEventListener('click', () => {
+            if (currentImage) canvas.getElement().toBlob((blob) => {
+                const anchor = document.createElement('a');
+                anchor.href = URL.createObjectURL(blob);
+                anchor.download = "apollo-studio-edited.png";
+                anchor.click();
+            }, 'image/png');
+        });
+
+        // --- FEATURE PROMPTS & EVENT LISTENERS ---
+        const coreIdentityPrompt = " IMPORTANT: The person's core identity, facial features, and structure MUST be preserved perfectly. The result must be photorealistic and blend seamlessly.";
+
+        canvas.on('mouse:down', (options) => {
+            if (!currentImage) return;
+            if (pointIndicator) canvas.remove(pointIndicator);
+            const pointer = canvas.getPointer(options.e);
+            selectedPoint = { x: Math.round(pointer.x), y: Math.round(pointer.y) };
+            pointIndicator = new fabric.Circle({ left: selectedPoint.x, top: selectedPoint.y, radius: 15, fill: 'transparent', stroke: 'var(--accent-color)', strokeWidth: 2, originX: 'center', originY: 'center', selectable: false, evented: false, opacity: 0 });
+            canvas.add(pointIndicator);
+            pointIndicator.animate({ 'opacity': 1, 'radius': 7}, { onChange: canvas.renderAll.bind(canvas), duration: 300 });
+        });
+        document.getElementById('retouch-btn').addEventListener('click', () => {
+            const promptText = document.getElementById('retouch-prompt').value;
+            if (!promptText) { alert('Please enter a retouch command.'); return; }
+            if (!selectedPoint) { alert('Please click a point on the image to target the edit.'); return; }
+            const prompt = `Perform a highly localized edit. Focusing precisely on the area around coordinates (x: ${selectedPoint.x}, y: ${selectedPoint.y}), apply this instruction: "${promptText}". Only modify this small area and blend it perfectly. The rest of the image must remain untouched.`;
+            callEditAPI(prompt, canvas.toDataURL());
+            selectedPoint = null;
+        });
+
+        document.getElementById('auto-enhance-btn').addEventListener('click', () => callEditAPI(`Professionally auto-enhance this photo. Adjust lighting, contrast, and color balance to make it look stunning, crisp, and clear. Maintain realism.${coreIdentityPrompt}`, canvas.toDataURL()));
+        document.getElementById('whiten-eyes-btn').addEventListener('click', () => callEditAPI(`Subtly and realistically whiten the sclera (the white parts) of the subject's eyes. Do not alter eye color or shape.${coreIdentityPrompt}`, canvas.toDataURL()));
+        document.getElementById('magic-smooth-btn').addEventListener('click', () => callEditAPI(`Apply a magic smooth effect to the subject's skin, reducing blemishes and fine lines for a flawless but natural look. Preserve skin texture.${coreIdentityPrompt}`, canvas.toDataURL()));
+        document.getElementById('upscale-select').addEventListener('change', (e) => {
+            const factor = e.target.value;
+            if (factor) callEditAPI(`Upscale this image to ${factor} its original resolution, enhancing details sharply without adding artifacts.`, canvas.toDataURL());
+            e.target.value = "";
+        });
+        document.getElementById('remove-bg-btn').addEventListener('click', () => callEditAPI(`Perfectly and cleanly remove the background from this image, leaving the main subject with a transparent background.`, canvas.toDataURL()));
+        document.getElementById('blur-bg-btn').addEventListener('click', () => callEditAPI(`Apply a realistic, shallow depth-of-field effect by blurring the background. The main subject must remain perfectly sharp.${coreIdentityPrompt}`, canvas.toDataURL()));
+        
+        const bgFileInput = document.createElement('input');
+        bgFileInput.type = 'file'; bgFileInput.accept = 'image/*';
+        document.getElementById('upload-bg-image-btn').addEventListener('click', () => bgFileInput.click());
+        bgFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => callEditAPI(`Take the main subject from the first image and place them realistically onto the second image (the new background). Ensure lighting, shadows, and scale match perfectly.${coreIdentityPrompt}`, canvas.toDataURL(), f.target.result);
+            reader.readAsDataURL(file);
+        });
+
+        document.getElementById('recolor-skin-btn').addEventListener('click', () => {
+            const tonePrompt = document.getElementById('skin-tone-select').value;
+            if (tonePrompt) callEditAPI(`Realistically change the subject's skin tone to ${tonePrompt}. Ensure undertones and highlights look natural.${coreIdentityPrompt}`, canvas.toDataURL());
+        });
+        const sampleFileInput = document.createElement('input');
+        sampleFileInput.type = 'file'; sampleFileInput.accept = 'image/*';
+        document.getElementById('upload-sample-btn').addEventListener('click', () => sampleFileInput.click());
+        sampleFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => callEditAPI(`Analyze the skin tone from the person in the second image. Apply that exact skin tone (hue, saturation, brightness) to the person in the first image. The result must be a seamless, realistic match.${coreIdentityPrompt}`, canvas.toDataURL(), f.target.result);
+            reader.readAsDataURL(file);
+        });
+        
+        // --- INITIALIZATION ---
+        updateControlsState();
+    });
+    </script>
+</body>
+</html>
