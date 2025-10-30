@@ -98,8 +98,7 @@
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- CONFIGURATION ---
-        // !!! IMPORTANT: PASTE YOUR LIVE RENDER.COM BACKEND URL HERE !!!
-        const backendUrl = 'YOUR_BACKEND_URL_HERE/api/edit'; 
+        const backendUrl = 'https://apollo-photo-studio.vercel.app/api/edit'; 
 
         // --- GLOBAL STATE & ELEMENTS ---
         const loadingSpinner = document.getElementById('loading-spinner');
@@ -146,8 +145,14 @@
                 const result = await response.json();
                 updateCanvasWithImage(result.newImageBase64);
             } catch (error) {
-                console.error("Error editing image:", error);
-                alert(`Request Failed: ${error.message}`);
+                console.error("Full error object:", error);
+                let userMessage = `Request Failed: ${error.message}.`;
+                if (error instanceof TypeError) { 
+                    userMessage += "\n\nThis is often a network error or a server configuration issue. Please check your Vercel logs and ensure the backend is running.";
+                } else if (error.message.includes("timed out")) {
+                     userMessage += "\n\nThe AI took too long to respond. This can happen with very complex requests. Please try a simpler edit.";
+                }
+                alert(userMessage);
             } finally {
                 loadingSpinner.classList.add('hidden');
                 updateControlsState();
@@ -166,10 +171,6 @@
         }
 
         function validateRequest(prompt, image) {
-            if (backendUrl.includes('YOUR_BACKEND_URL_HERE')) {
-                alert('CONFIGURATION ERROR: Please set your backend URL in the index.html file.');
-                return false;
-            }
             if (!image) { alert("Please upload an image first."); return false; }
             if (!prompt) { alert("An internal error occurred: Prompt is missing."); return false; }
             return true;
@@ -281,3 +282,4 @@
     </script>
 </body>
 </html>
+```
